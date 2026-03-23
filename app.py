@@ -55,7 +55,6 @@ if "patch_list" not in st.session_state:
 if "success_msg" not in st.session_state:
     st.session_state["success_msg"] = ""
 
-# FIX: Initiera kontrollvariabeln för snabbinmatning
 if "snabb_läge_state" not in st.session_state:
     st.session_state.snabb_läge_state = False
 
@@ -119,30 +118,30 @@ st.divider()
 st.header("2. Aktuell Patchlista")
 if st.session_state["patch_list"]:
     
-    # FIX: Togglen läser från session_state men har ingen egen låst "key"
     current_toggle = st.toggle("⚡ Snabb-inmatningsläge (Låser tabellen för Excel-känsla)", value=st.session_state.snabb_läge_state)
     
-    # Om användaren klickar manuellt på togglen, uppdatera state
     if current_toggle != st.session_state.snabb_läge_state:
         st.session_state.snabb_läge_state = current_toggle
         st.rerun()
     
     h = max(150, (len(st.session_state["patch_list"]) * 36) + 45)
     
+    # VIKTIGT: Gör om listan till en DataFrame för att tabellen ska fatta
+    df_patch = pd.DataFrame(st.session_state["patch_list"])
+
     if st.session_state.snabb_läge_state:
         st.info("💡 Använd **Tab** och **Pilar** fritt. Tryck på Spara när du är klar!")
         with st.form("batch_edit_form"):
             edited_df = st.data_editor(
-                st.session_state["patch_list"], use_container_width=True, height=h, hide_index=True,
+                df_patch, use_container_width=True, height=h, hide_index=True,
                 column_config={"Kanal": st.column_config.NumberColumn(disabled=True), "Stativ": st.column_config.SelectboxColumn(options=stativ_val)},
                 key="batch_editor"
             )
             if st.form_submit_button("💾 Spara och stäng redigering"):
-                st.session_state["patch_list"] = edited_df.to_dict('records') # Spara datan
-                st.session_state.snabb_läge_state = False # Stäng av läget
+                st.session_state["patch_list"] = edited_df.to_dict('records')
+                st.session_state.snabb_läge_state = False 
                 st.rerun()
     else:
-        # Vanligt läge (Live-uppdatering)
         def update_live():
             edits = st.session_state["patch_editor"].get("edited_rows", {})
             for idx_str, data in edits.items():
@@ -151,7 +150,7 @@ if st.session_state["patch_list"]:
                     st.session_state["patch_list"][idx][col] = val
 
         st.data_editor(
-            st.session_state["patch_list"], use_container_width=True, height=h, hide_index=True,
+            df_patch, use_container_width=True, height=h, hide_index=True,
             column_config={"Kanal": st.column_config.NumberColumn(disabled=True), "Stativ": st.column_config.SelectboxColumn(options=stativ_val)},
             key="patch_editor", on_change=update_live 
         )
@@ -172,7 +171,6 @@ if st.session_state["patch_list"]:
     st.header("3. Exportera")
     cx, cy = st.columns(2)
     with cx:
-        # NY RUBRIK: Namn till mixerbord
         st.subheader("📝 Namn till mixerbord")
         st.code("\n".join([r["Instrument"] for r in st.session_state["patch_list"]]), language="text")
     with cy:
