@@ -55,6 +55,10 @@ if "patch_list" not in st.session_state:
 if "success_msg" not in st.session_state:
     st.session_state["success_msg"] = ""
 
+# För att kunna kontrollera snabbinmatningen via kod
+if "snabb_läge_active" not in st.session_state:
+    st.session_state.snabb_läge_active = False
+
 if "vald_inst" not in st.session_state or st.session_state["vald_inst"] not in instrument_lista:
     if instrument_lista:
         st.session_state["vald_inst"] = instrument_lista[0]
@@ -114,25 +118,25 @@ st.divider()
 
 st.header("2. Aktuell Patchlista")
 if st.session_state["patch_list"]:
-    # NYHET: Snabb-redigeringsläge
-    snabb_läge = st.toggle("⚡ Snabb-inmatningsläge (Låser tabellen för Excel-känsla)", value=False)
+    # Kopplar togglen till session_state för att kunna stänga av den automatiskt
+    snabb_läge = st.toggle("⚡ Snabb-inmatningsläge (Låser tabellen för Excel-känsla)", key="snabb_läge_active")
     
     h = max(150, (len(st.session_state["patch_list"]) * 36) + 45)
     
     if snabb_läge:
-        st.info("💡 I detta läge kan du använda **Tab** och **Piltangenter** fritt. Tryck på 'Spara ändringar' när du är klar!")
+        st.info("💡 Använd **Tab** och **Pilar** fritt. Tryck på Spara för att uppdatera PDF och packlista!")
         with st.form("batch_edit_form"):
             edited_df = st.data_editor(
                 st.session_state["patch_list"], use_container_width=True, height=h, hide_index=True,
                 column_config={"Kanal": st.column_config.NumberColumn(disabled=True), "Stativ": st.column_config.SelectboxColumn(options=stativ_val)},
                 key="batch_editor"
             )
-            if st.form_submit_button("💾 Spara alla ändringar"):
+            if st.form_submit_button("💾 Spara och stäng redigering"):
                 st.session_state["patch_list"] = edited_df
-                st.success("Ändringar sparade!")
+                # Här stänger vi av läget automatiskt!
+                st.session_state.snabb_läge_active = False
                 st.rerun()
     else:
-        # Vanligt läge (Live-uppdatering)
         def update_live():
             edits = st.session_state["patch_editor"].get("edited_rows", {})
             for idx_str, data in edits.items():
@@ -162,7 +166,8 @@ if st.session_state["patch_list"]:
     st.header("3. Exportera")
     cx, cy = st.columns(2)
     with cx:
-        st.subheader("📝 Namn till Yamaha")
+        # Rubriken är nu ändrad!
+        st.subheader("📝 Namn till mixerbord")
         st.code("\n".join([r["Instrument"] for r in st.session_state["patch_list"]]), language="text")
     with cy:
         st.subheader("📄 PDF & Packlista")
