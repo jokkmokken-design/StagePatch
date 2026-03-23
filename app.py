@@ -11,7 +11,6 @@ st.sidebar.header("🎸 Gig & Inställningar")
 gig_namn = st.sidebar.text_input("Namn på Gig/Band:", placeholder="T.ex. Sommarfestivalen 2026")
 
 st.sidebar.divider()
-
 st.sidebar.header("📁 Din Micklåda (Databas)")
 
 DEFAULT_DB_PATH = "databas.xlsx"
@@ -25,8 +24,7 @@ if os.path.exists(DEFAULT_DB_PATH):
             s = str(row["Stativ"]) if pd.notna(row["Stativ"]) else "Inget"
             standard_mics[str(row["Instrument"])] = {"Mic": m, "Stativ": s}
         st.sidebar.success("✅ Laddade micklåda från fil!")
-    except:
-        pass
+    except: pass
 
 if not standard_mics:
     template_data = {
@@ -87,13 +85,6 @@ def lagg_till_kanal(ny_box):
     st.session_state["vald_stativ"] = s if s in stativ_val else stativ_val[0]
     st.session_state["success_msg"] = f"{inst} tillagd!"
 
-def update_table():
-    edits = st.session_state["patch_editor"].get("edited_rows", {})
-    for idx_str, data in edits.items():
-        idx = int(idx_str)
-        for col, val in data.items():
-            st.session_state["patch_list"][idx][col] = val
-
 # --- HUVUDYTA ---
 st.title(f"StagePatch 🎛️ - {gig_namn}" if gig_namn else "StagePatch 🎛️")
 
@@ -123,12 +114,38 @@ st.divider()
 
 st.header("2. Aktuell Patchlista")
 if st.session_state["patch_list"]:
+    # NYHET: Snabb-redigeringsläge
+    snabb_läge = st.toggle("⚡ Snabb-inmatningsläge (Låser tabellen för Excel-känsla)", value=False)
+    
     h = max(150, (len(st.session_state["patch_list"]) * 36) + 45)
-    st.data_editor(
-        st.session_state["patch_list"], use_container_width=True, height=h, hide_index=True,
-        column_config={"Kanal": st.column_config.NumberColumn(disabled=True), "Stativ": st.column_config.SelectboxColumn(options=stativ_val)},
-        key="patch_editor", on_change=update_table 
-    )
+    
+    if snabb_läge:
+        st.info("💡 I detta läge kan du använda **Tab** och **Piltangenter** fritt. Tryck på 'Spara ändringar' när du är klar!")
+        with st.form("batch_edit_form"):
+            edited_df = st.data_editor(
+                st.session_state["patch_list"], use_container_width=True, height=h, hide_index=True,
+                column_config={"Kanal": st.column_config.NumberColumn(disabled=True), "Stativ": st.column_config.SelectboxColumn(options=stativ_val)},
+                key="batch_editor"
+            )
+            if st.form_submit_button("💾 Spara alla ändringar"):
+                st.session_state["patch_list"] = edited_df
+                st.success("Ändringar sparade!")
+                st.rerun()
+    else:
+        # Vanligt läge (Live-uppdatering)
+        def update_live():
+            edits = st.session_state["patch_editor"].get("edited_rows", {})
+            for idx_str, data in edits.items():
+                idx = int(idx_str)
+                for col, val in data.items():
+                    st.session_state["patch_list"][idx][col] = val
+
+        st.data_editor(
+            st.session_state["patch_list"], use_container_width=True, height=h, hide_index=True,
+            column_config={"Kanal": st.column_config.NumberColumn(disabled=True), "Stativ": st.column_config.SelectboxColumn(options=stativ_val)},
+            key="patch_editor", on_change=update_live 
+        )
+
     ca, cb, cc = st.columns(3)
     with ca: ch_del = st.selectbox("Radera kanal:", [r["Kanal"] for r in st.session_state["patch_list"]])
     with cb: 
@@ -149,18 +166,13 @@ if st.session_state["patch_list"]:
         st.code("\n".join([r["Instrument"] for r in st.session_state["patch_list"]]), language="text")
     with cy:
         st.subheader("📄 PDF & Packlista")
-        
-        # --- ROBUST PDF-MOTOR ---
         pdf = FPDF()
         pdf.add_page()
-        
-        # 1. Rubrik
         pdf.set_font("helvetica", "B", 18)
         titel = f"Patchlista: {gig_namn}" if gig_namn else "Patchlista"
         pdf.cell(0, 10, titel, new_x="LMARGIN", new_y="NEXT", align="C")
         pdf.ln(5)
         
-        # 2. Gruppering
         box_groups = {}
         for r in st.session_state["patch_list"]:
             b_val = str(r.get("Stagebox", "")).strip()
@@ -168,11 +180,9 @@ if st.session_state["patch_list"]:
             if g not in box_groups: box_groups[g] = []
             box_groups[g].append(r)
             
-        # 3. Rita Patchlistan
         for g_name in sorted(box_groups.keys()):
             pdf.set_font("helvetica", "B", 14)
             pdf.cell(0, 10, f"Stagebox {g_name}" if g_name != "Trådlöst" else "Trådlöst", new_x="LMARGIN", new_y="NEXT")
-            
             pdf.set_font("helvetica", "", 12)
             for k in sorted(box_groups[g_name], key=lambda x: str(x["Stagebox"])):
                 b_lbl = f"{k['Stagebox']} " if k['Stagebox'] else ""
@@ -180,26 +190,20 @@ if st.session_state["patch_list"]:
                 pdf.cell(0, 8, row_txt, new_x="LMARGIN", new_y="NEXT")
             pdf.ln(5)
             
-        # 4. Räkna Packlista
         m_count = {}; s_count = {}
         for r in st.session_state["patch_list"]:
             m = r["Mic/DI"]; s = r["Stativ"]
             if m: m_count[m] = m_count.get(m, 0) + 1
             if s and s != "Inget": s_count[s] = s_count.get(s, 0) + 1
 
-        # 5. Rita Packlista
         if m_count or s_count:
-            pdf.ln(10)
-            pdf.set_font("helvetica", "B", 16)
-            pdf.cell(0, 10, "--- PACKLISTA ---", new_x="LMARGIN", new_y="NEXT", align="C")
-            pdf.ln(5)
-            
+            pdf.ln(10); pdf.set_font("helvetica", "B", 16)
+            pdf.cell(0, 10, "--- PACKLISTA ---", new_x="LMARGIN", new_y="NEXT", align="C"); pdf.ln(5)
             if m_count:
                 pdf.set_font("helvetica", "B", 12); pdf.cell(0, 8, "Mickar/DI:", new_x="LMARGIN", new_y="NEXT")
                 pdf.set_font("helvetica", "", 12)
                 for m, a in sorted(m_count.items()): pdf.cell(0, 8, f"{a} st  {m}", new_x="LMARGIN", new_y="NEXT")
                 pdf.ln(5)
-            
             if s_count:
                 pdf.set_font("helvetica", "B", 12); pdf.cell(0, 8, "Stativ:", new_x="LMARGIN", new_y="NEXT")
                 pdf.set_font("helvetica", "", 12)
