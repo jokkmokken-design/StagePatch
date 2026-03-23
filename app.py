@@ -55,16 +55,16 @@ if "patch_list" not in st.session_state:
 if "success_msg" not in st.session_state:
     st.session_state["success_msg"] = ""
 
-# För att kunna kontrollera snabbinmatningen via kod
-if "snabb_läge_active" not in st.session_state:
-    st.session_state.snabb_läge_active = False
+# FIX: Initiera kontrollvariabeln för snabbinmatning
+if "snabb_läge_state" not in st.session_state:
+    st.session_state.snabb_läge_state = False
 
 if "vald_inst" not in st.session_state or st.session_state["vald_inst"] not in instrument_lista:
     if instrument_lista:
         st.session_state["vald_inst"] = instrument_lista[0]
-        on_inst_change_logic = standard_mics[instrument_lista[0]]
-        st.session_state["vald_mic"] = on_inst_change_logic["Mic"]
-        st.session_state["vald_stativ"] = on_inst_change_logic["Stativ"] if on_inst_change_logic["Stativ"] in stativ_val else stativ_val[0]
+        curr = standard_mics[instrument_lista[0]]
+        st.session_state["vald_mic"] = curr["Mic"]
+        st.session_state["vald_stativ"] = curr["Stativ"] if curr["Stativ"] in stativ_val else stativ_val[0]
 
 def on_inst_change():
     inst = st.session_state["vald_inst"]
@@ -118,13 +118,19 @@ st.divider()
 
 st.header("2. Aktuell Patchlista")
 if st.session_state["patch_list"]:
-    # Kopplar togglen till session_state för att kunna stänga av den automatiskt
-    snabb_läge = st.toggle("⚡ Snabb-inmatningsläge (Låser tabellen för Excel-känsla)", key="snabb_läge_active")
+    
+    # FIX: Togglen läser från session_state men har ingen egen låst "key"
+    current_toggle = st.toggle("⚡ Snabb-inmatningsläge (Låser tabellen för Excel-känsla)", value=st.session_state.snabb_läge_state)
+    
+    # Om användaren klickar manuellt på togglen, uppdatera state
+    if current_toggle != st.session_state.snabb_läge_state:
+        st.session_state.snabb_läge_state = current_toggle
+        st.rerun()
     
     h = max(150, (len(st.session_state["patch_list"]) * 36) + 45)
     
-    if snabb_läge:
-        st.info("💡 Använd **Tab** och **Pilar** fritt. Tryck på Spara för att uppdatera PDF och packlista!")
+    if st.session_state.snabb_läge_state:
+        st.info("💡 Använd **Tab** och **Pilar** fritt. Tryck på Spara när du är klar!")
         with st.form("batch_edit_form"):
             edited_df = st.data_editor(
                 st.session_state["patch_list"], use_container_width=True, height=h, hide_index=True,
@@ -132,11 +138,11 @@ if st.session_state["patch_list"]:
                 key="batch_editor"
             )
             if st.form_submit_button("💾 Spara och stäng redigering"):
-                st.session_state["patch_list"] = edited_df
-                # Här stänger vi av läget automatiskt!
-                st.session_state.snabb_läge_active = False
+                st.session_state["patch_list"] = edited_df.to_dict('records') # Spara datan
+                st.session_state.snabb_läge_state = False # Stäng av läget
                 st.rerun()
     else:
+        # Vanligt läge (Live-uppdatering)
         def update_live():
             edits = st.session_state["patch_editor"].get("edited_rows", {})
             for idx_str, data in edits.items():
@@ -166,7 +172,7 @@ if st.session_state["patch_list"]:
     st.header("3. Exportera")
     cx, cy = st.columns(2)
     with cx:
-        # Rubriken är nu ändrad!
+        # NY RUBRIK: Namn till mixerbord
         st.subheader("📝 Namn till mixerbord")
         st.code("\n".join([r["Instrument"] for r in st.session_state["patch_list"]]), language="text")
     with cy:
