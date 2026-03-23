@@ -7,7 +7,7 @@ st.set_page_config(page_title="StagePatch", layout="wide")
 
 # --- SIDOMENY: INSTÄLLNINGAR & DATABAS ---
 st.sidebar.header("🎸 Gig & Inställningar")
-gig_namn = st.sidebar.text_input("Namn på Gig/Band:", placeholder="T.ex. Konferens")
+gig_namn = st.sidebar.text_input("Namn på Gig/Band:", placeholder="T.ex. Sommarfestivalen 2026")
 
 st.sidebar.divider()
 
@@ -15,8 +15,8 @@ st.sidebar.header("📁 Din Micklåda (Databas)")
 st.sidebar.write("Ladda upp din egen Excel-fil med instrument och mikrofoner.")
 
 template_data = {
-    "Instrument": ["KICK IN", "KICK OUT", "SNR T", "SNR B", "HH", "T1", "T2", "OH SL", "OH SR", "BAS", "KEY1", "KEY2", "KEY3", "KEY4", "GTR ST 1", "GTR ST 2", "GTR1", "GTR2", "BV", "BV DR", "BV BAS", "BV KEY", "BV GTR", "LEAD", "DJ"],
-    "Mic": ["B91", "B52", "e604", "SM81", "J48", "J48 ST", "XLR", "SM57", "B58", "AD2"],
+    "Instrument": ["Kick In", "Kick Out", "Snare Top", "Bass DI", "Vocal Center"],
+    "Mic": ["Shure Beta 91", "Audix D6", "Shure SM57", "Radial J48", "Shure Beta 58"],
     "Stativ": ["Inget", "Very Short", "Short", "Inget", "Tall"]
 }
 template_df = pd.DataFrame(template_data)
