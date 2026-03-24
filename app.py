@@ -77,7 +77,6 @@ def lagg_till_kanal(ny_box):
     stativ = st.session_state["vald_stativ"]
     knr = len(st.session_state["patch_list"]) + 1 
     
-    # Lade till "Dante" här, som får Kanalnumret som standard!
     st.session_state["patch_list"].append({
         "Kanal": knr, "Dante": knr, "Instrument": inst, "Mic/DI": mic, "Stativ": stativ, "Stagebox": ny_box 
     })
@@ -131,7 +130,6 @@ if st.session_state["patch_list"]:
     
     df_patch = pd.DataFrame(st.session_state["patch_list"])
 
-    # Lade in Dante i column_config så den hanteras som ett snyggt nummer i tabellen
     if st.session_state.snabb_läge_state:
         st.info("💡 Använd **Tab** och **Pilar** fritt. Tryck på Spara när du är klar!")
         with st.form("batch_edit_form"):
@@ -197,28 +195,37 @@ if st.session_state["patch_list"]:
         box_groups = {}
         for r in st.session_state["patch_list"]:
             b_val = str(r.get("Stagebox", "")).strip()
-            g = b_val[0].upper() if b_val and b_val[0].isalpha() else "Trådlöst"
+            
+            # BUGGFIX: Fånga upp "None", "nan", eller tomma strängar från tömda celler
+            if b_val.lower() in ["nan", "none", "null", ""]:
+                g = "Trådlöst"
+                r["Stagebox"] = "" # Tömmer värdet för utskriften
+            else:
+                g = b_val[0].upper() if b_val[0].isalpha() else "Trådlöst"
+                
             if g not in box_groups: box_groups[g] = []
             box_groups[g].append(r)
             
         for g_name in sorted(box_groups.keys()):
-            # Stagebox Rubrik
             pdf.set_font("helvetica", "B", 14)
             pdf.cell(0, 10, f"Stagebox {g_name}" if g_name != "Trådlöst" else "Trådlöst", new_x="LMARGIN", new_y="NEXT")
             
-            # Tabell-header med 4 kolumner
             pdf.set_font("helvetica", "B", 12)
             pdf.cell(20, 8, "Kanal", border=1, align="C")
             pdf.cell(20, 8, "Dante", border=1, align="C")
             pdf.cell(25, 8, "Patch", border=1, align="C")
             pdf.cell(90, 8, "Instrument", border=1, new_x="LMARGIN", new_y="NEXT")
             
-            # Tabell-rader
             pdf.set_font("helvetica", "", 12)
             for k in sorted(box_groups[g_name], key=lambda x: str(x["Stagebox"])):
                 b_lbl = str(k['Stagebox']) if k['Stagebox'] else "-"
-                # Fångar upp Dante, annars backar den till Kanal om datan saknas av nån anledning
-                d_lbl = str(k.get('Dante', k['Kanal'])) 
+                
+                # BUGGFIX: Säker hantering ifall Dante-cellen också raderades manuellt
+                d_raw = k.get('Dante')
+                if pd.isna(d_raw) or d_raw is None or str(d_raw).lower() in ["nan", "none", ""]:
+                    d_lbl = str(k['Kanal'])
+                else:
+                    d_lbl = str(d_raw).replace(".0", "") # Streamlit lägger ibland till .0 på siffror
                 
                 pdf.cell(20, 8, f"Ch {k['Kanal']}", border=1, align="C")
                 pdf.cell(20, 8, d_lbl, border=1, align="C")
