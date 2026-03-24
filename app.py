@@ -126,7 +126,6 @@ if st.session_state["patch_list"]:
     
     h = max(150, (len(st.session_state["patch_list"]) * 36) + 45)
     
-    # VIKTIGT: Gör om listan till en DataFrame för att tabellen ska fatta
     df_patch = pd.DataFrame(st.session_state["patch_list"])
 
     if st.session_state.snabb_läge_state:
@@ -175,6 +174,8 @@ if st.session_state["patch_list"]:
         st.code("\n".join([r["Instrument"] for r in st.session_state["patch_list"]]), language="text")
     with cy:
         st.subheader("📄 PDF & Packlista")
+        
+        # --- PDF MED RUTNÄT ---
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("helvetica", "B", 18)
@@ -190,14 +191,25 @@ if st.session_state["patch_list"]:
             box_groups[g].append(r)
             
         for g_name in sorted(box_groups.keys()):
+            # Stagebox Rubrik
             pdf.set_font("helvetica", "B", 14)
             pdf.cell(0, 10, f"Stagebox {g_name}" if g_name != "Trådlöst" else "Trådlöst", new_x="LMARGIN", new_y="NEXT")
+            
+            # Tabell-header (Rutnät)
+            pdf.set_font("helvetica", "B", 12)
+            pdf.cell(25, 8, "Kanal", border=1, align="C")
+            pdf.cell(30, 8, "Patch", border=1, align="C")
+            pdf.cell(100, 8, "Instrument", border=1, new_x="LMARGIN", new_y="NEXT")
+            
+            # Tabell-rader (Rutnät)
             pdf.set_font("helvetica", "", 12)
             for k in sorted(box_groups[g_name], key=lambda x: str(x["Stagebox"])):
-                b_lbl = f"{k['Stagebox']} " if k['Stagebox'] else ""
-                row_txt = f"Ch {k['Kanal']}.   {b_lbl}  {k['Instrument']}"
-                pdf.cell(0, 8, row_txt, new_x="LMARGIN", new_y="NEXT")
-            pdf.ln(5)
+                b_lbl = str(k['Stagebox']) if k['Stagebox'] else "-"
+                pdf.cell(25, 8, f"Ch {k['Kanal']}", border=1, align="C")
+                pdf.cell(30, 8, b_lbl, border=1, align="C")
+                pdf.cell(100, 8, f" {k['Instrument']}", border=1, new_x="LMARGIN", new_y="NEXT")
+            
+            pdf.ln(8) # Lite extra mellanrum efter varje tabell
             
         m_count = {}; s_count = {}
         for r in st.session_state["patch_list"]:
@@ -206,7 +218,7 @@ if st.session_state["patch_list"]:
             if s and s != "Inget": s_count[s] = s_count.get(s, 0) + 1
 
         if m_count or s_count:
-            pdf.ln(10); pdf.set_font("helvetica", "B", 16)
+            pdf.ln(5); pdf.set_font("helvetica", "B", 16)
             pdf.cell(0, 10, "--- PACKLISTA ---", new_x="LMARGIN", new_y="NEXT", align="C"); pdf.ln(5)
             if m_count:
                 pdf.set_font("helvetica", "B", 12); pdf.cell(0, 8, "Mickar/DI:", new_x="LMARGIN", new_y="NEXT")
