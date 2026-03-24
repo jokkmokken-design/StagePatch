@@ -76,9 +76,12 @@ def lagg_till_kanal(ny_box):
     mic = st.session_state["vald_mic"]
     stativ = st.session_state["vald_stativ"]
     knr = len(st.session_state["patch_list"]) + 1 
+    
+    # Lade till "Dante" här, som får Kanalnumret som standard!
     st.session_state["patch_list"].append({
-        "Kanal": knr, "Instrument": inst, "Mic/DI": mic, "Stativ": stativ, "Stagebox": ny_box 
+        "Kanal": knr, "Dante": knr, "Instrument": inst, "Mic/DI": mic, "Stativ": stativ, "Stagebox": ny_box 
     })
+    
     idx = instrument_lista.index(inst)
     n_idx = (idx + 1) % len(instrument_lista)
     n_inst = instrument_lista[n_idx]
@@ -128,12 +131,17 @@ if st.session_state["patch_list"]:
     
     df_patch = pd.DataFrame(st.session_state["patch_list"])
 
+    # Lade in Dante i column_config så den hanteras som ett snyggt nummer i tabellen
     if st.session_state.snabb_läge_state:
         st.info("💡 Använd **Tab** och **Pilar** fritt. Tryck på Spara när du är klar!")
         with st.form("batch_edit_form"):
             edited_df = st.data_editor(
                 df_patch, use_container_width=True, height=h, hide_index=True,
-                column_config={"Kanal": st.column_config.NumberColumn(disabled=True), "Stativ": st.column_config.SelectboxColumn(options=stativ_val)},
+                column_config={
+                    "Kanal": st.column_config.NumberColumn(disabled=True), 
+                    "Dante": st.column_config.NumberColumn("Dante", step=1),
+                    "Stativ": st.column_config.SelectboxColumn(options=stativ_val)
+                },
                 key="batch_editor"
             )
             if st.form_submit_button("💾 Spara och stäng redigering"):
@@ -150,7 +158,11 @@ if st.session_state["patch_list"]:
 
         st.data_editor(
             df_patch, use_container_width=True, height=h, hide_index=True,
-            column_config={"Kanal": st.column_config.NumberColumn(disabled=True), "Stativ": st.column_config.SelectboxColumn(options=stativ_val)},
+            column_config={
+                "Kanal": st.column_config.NumberColumn(disabled=True), 
+                "Dante": st.column_config.NumberColumn("Dante", step=1),
+                "Stativ": st.column_config.SelectboxColumn(options=stativ_val)
+            },
             key="patch_editor", on_change=update_live 
         )
 
@@ -175,7 +187,6 @@ if st.session_state["patch_list"]:
     with cy:
         st.subheader("📄 PDF & Packlista")
         
-        # --- PDF MED RUTNÄT ---
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("helvetica", "B", 18)
@@ -195,21 +206,26 @@ if st.session_state["patch_list"]:
             pdf.set_font("helvetica", "B", 14)
             pdf.cell(0, 10, f"Stagebox {g_name}" if g_name != "Trådlöst" else "Trådlöst", new_x="LMARGIN", new_y="NEXT")
             
-            # Tabell-header (Rutnät)
+            # Tabell-header med 4 kolumner
             pdf.set_font("helvetica", "B", 12)
-            pdf.cell(25, 8, "Kanal", border=1, align="C")
-            pdf.cell(30, 8, "Patch", border=1, align="C")
-            pdf.cell(100, 8, "Instrument", border=1, new_x="LMARGIN", new_y="NEXT")
+            pdf.cell(20, 8, "Kanal", border=1, align="C")
+            pdf.cell(20, 8, "Dante", border=1, align="C")
+            pdf.cell(25, 8, "Patch", border=1, align="C")
+            pdf.cell(90, 8, "Instrument", border=1, new_x="LMARGIN", new_y="NEXT")
             
-            # Tabell-rader (Rutnät)
+            # Tabell-rader
             pdf.set_font("helvetica", "", 12)
             for k in sorted(box_groups[g_name], key=lambda x: str(x["Stagebox"])):
                 b_lbl = str(k['Stagebox']) if k['Stagebox'] else "-"
-                pdf.cell(25, 8, f"Ch {k['Kanal']}", border=1, align="C")
-                pdf.cell(30, 8, b_lbl, border=1, align="C")
-                pdf.cell(100, 8, f" {k['Instrument']}", border=1, new_x="LMARGIN", new_y="NEXT")
+                # Fångar upp Dante, annars backar den till Kanal om datan saknas av nån anledning
+                d_lbl = str(k.get('Dante', k['Kanal'])) 
+                
+                pdf.cell(20, 8, f"Ch {k['Kanal']}", border=1, align="C")
+                pdf.cell(20, 8, d_lbl, border=1, align="C")
+                pdf.cell(25, 8, b_lbl, border=1, align="C")
+                pdf.cell(90, 8, f" {k['Instrument']}", border=1, new_x="LMARGIN", new_y="NEXT")
             
-            pdf.ln(8) # Lite extra mellanrum efter varje tabell
+            pdf.ln(8) 
             
         m_count = {}; s_count = {}
         for r in st.session_state["patch_list"]:
