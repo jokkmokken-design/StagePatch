@@ -188,11 +188,10 @@ if st.session_state["patch_list"]:
         csv_data = io.StringIO()
         csv_data.write("[Information]\nCS-R5\nDSP-RX\nV7.00\n[InName]\nIN,NAME,COLOR,ICON,\n")
         
-        # 1. Hämta vad användaren skrivit in i appen
         patch_dict = {int(r["Kanal"]): str(r["Instrument"]) for r in st.session_state["patch_list"]}
         
-        # 2. Läs in användarens startfils-namn om den finns
-        base_names = {}
+        # FIX: Läs in Namn, Färg och Ikon från startfilen!
+        base_data = {}
         base_csv_path = "rivage_base.csv"
         if os.path.exists(base_csv_path):
             try:
@@ -203,25 +202,41 @@ if st.session_state["patch_list"]:
                             if len(parts) >= 2:
                                 try:
                                     c_num = int(parts[0].replace("_", ""))
-                                    base_names[c_num] = parts[1]
+                                    b_name = parts[1]
+                                    # Fånga färg och ikon, annars defaulta till Blue/Dynamic
+                                    b_color = parts[2] if len(parts) > 2 else "Blue"
+                                    b_icon = parts[3] if len(parts) > 3 else "Dynamic"
+                                    
+                                    base_data[c_num] = {
+                                        "name": b_name, 
+                                        "color": b_color, 
+                                        "icon": b_icon
+                                    }
                                 except: pass
             except: pass
 
-        # 3. Bygg upp den färdiga Rivage-filen rad för rad
         for i in range(1, 145):
             ch_format = f"_{i:03d}"
             
-            # Prioritera appens namn i första hand
+            # Sätt default-värden om kanalen är helt tom i båda systemen
+            b_color = "Blue"
+            b_icon = "Dynamic"
+            
+            # Har kanalen ett utseende i startfilen? Kopiera det!
+            if i in base_data:
+                b_color = base_data[i]["color"]
+                b_icon = base_data[i]["icon"]
+            
+            # Sätt namnet: 1. Appen, 2. Startfilen, 3. Standard
             if i in patch_dict:
                 rent_namn = patch_dict[i].replace(",", " ")
-            # Annars, om kanalen finns i startfilen, ta tillbaka originalnamnet (t.ex. FX RET)
-            elif i in base_names:
-                rent_namn = base_names[i]
-            # Annars döp den bara till ch X
+            elif i in base_data:
+                rent_namn = base_data[i]["name"]
             else:
                 rent_namn = f"ch {i}"
                 
-            csv_data.write(f"{ch_format},{rent_namn},Blue,Dynamic,\n")
+            # Skriv raden med rätt namn, rätt färg och rätt ikon!
+            csv_data.write(f"{ch_format},{rent_namn},{b_color},{b_icon},\n")
             
         csv_str = csv_data.getvalue()
         
