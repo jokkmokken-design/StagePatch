@@ -182,22 +182,17 @@ if st.session_state["patch_list"]:
         st.subheader("📝 Namn till mixerbord")
         st.code("\n".join([r["Instrument"] for r in st.session_state["patch_list"]]), language="text")
         
-        # --- NYHET: RIVAGE CSV EXPORT ---
         st.write("---")
         st.subheader("🎛️ Rivage PM Export")
         
-        # Bygg CSV-strängen manuellt så den blir exakt som Yamaha vill ha den
         csv_data = io.StringIO()
         csv_data.write("[Information]\nCS-R5\nDSP-RX\nV7.00\n[InName]\nIN,NAME,COLOR,ICON,\n")
         
-        # Skapa en dictionary med kanalnummer som nyckel för snabb sökning
         patch_dict = {int(r["Kanal"]): str(r["Instrument"]) for r in st.session_state["patch_list"]}
         
-        # Rivage PM DSP-RX har upp till 144 ingångar
         for i in range(1, 145):
             ch_format = f"_{i:03d}"
             if i in patch_dict:
-                # Tvätta bort kommatecken från namnet så CSV-filen inte går sönder
                 rent_namn = patch_dict[i].replace(",", " ")
             else:
                 rent_namn = f"ch {i}"
@@ -206,10 +201,11 @@ if st.session_state["patch_list"]:
             
         csv_str = csv_data.getvalue()
         
+        # FIX: Filnamnet är nu låst till exakt "InName.csv"
         st.download_button(
             label="💾 Ladda ner Rivage CSV",
             data=csv_str,
-            file_name=f"Rivage_InName_{gig_namn}.csv" if gig_namn else "Rivage_InName.csv",
+            file_name="InName.csv",
             mime="text/csv",
             type="secondary"
         )
