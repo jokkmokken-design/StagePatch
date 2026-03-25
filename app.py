@@ -127,7 +127,6 @@ if st.session_state["patch_list"]:
         st.rerun()
     
     h = max(150, (len(st.session_state["patch_list"]) * 36) + 45)
-    
     df_patch = pd.DataFrame(st.session_state["patch_list"])
 
     if st.session_state.snabb_läge_state:
@@ -182,6 +181,39 @@ if st.session_state["patch_list"]:
     with cx:
         st.subheader("📝 Namn till mixerbord")
         st.code("\n".join([r["Instrument"] for r in st.session_state["patch_list"]]), language="text")
+        
+        # --- NYHET: RIVAGE CSV EXPORT ---
+        st.write("---")
+        st.subheader("🎛️ Rivage PM Export")
+        
+        # Bygg CSV-strängen manuellt så den blir exakt som Yamaha vill ha den
+        csv_data = io.StringIO()
+        csv_data.write("[Information]\nCS-R5\nDSP-RX\nV7.00\n[InName]\nIN,NAME,COLOR,ICON,\n")
+        
+        # Skapa en dictionary med kanalnummer som nyckel för snabb sökning
+        patch_dict = {int(r["Kanal"]): str(r["Instrument"]) for r in st.session_state["patch_list"]}
+        
+        # Rivage PM DSP-RX har upp till 144 ingångar
+        for i in range(1, 145):
+            ch_format = f"_{i:03d}"
+            if i in patch_dict:
+                # Tvätta bort kommatecken från namnet så CSV-filen inte går sönder
+                rent_namn = patch_dict[i].replace(",", " ")
+            else:
+                rent_namn = f"ch {i}"
+                
+            csv_data.write(f"{ch_format},{rent_namn},Blue,Dynamic,\n")
+            
+        csv_str = csv_data.getvalue()
+        
+        st.download_button(
+            label="💾 Ladda ner Rivage CSV",
+            data=csv_str,
+            file_name=f"Rivage_InName_{gig_namn}.csv" if gig_namn else "Rivage_InName.csv",
+            mime="text/csv",
+            type="secondary"
+        )
+
     with cy:
         st.subheader("📄 PDF & Packlista")
         
@@ -195,11 +227,9 @@ if st.session_state["patch_list"]:
         box_groups = {}
         for r in st.session_state["patch_list"]:
             b_val = str(r.get("Stagebox", "")).strip()
-            
-            # BUGGFIX: Fånga upp "None", "nan", eller tomma strängar från tömda celler
             if b_val.lower() in ["nan", "none", "null", ""]:
                 g = "Trådlöst"
-                r["Stagebox"] = "" # Tömmer värdet för utskriften
+                r["Stagebox"] = ""
             else:
                 g = b_val[0].upper() if b_val[0].isalpha() else "Trådlöst"
                 
@@ -220,12 +250,11 @@ if st.session_state["patch_list"]:
             for k in sorted(box_groups[g_name], key=lambda x: str(x["Stagebox"])):
                 b_lbl = str(k['Stagebox']) if k['Stagebox'] else "-"
                 
-                # BUGGFIX: Säker hantering ifall Dante-cellen också raderades manuellt
                 d_raw = k.get('Dante')
                 if pd.isna(d_raw) or d_raw is None or str(d_raw).lower() in ["nan", "none", ""]:
                     d_lbl = str(k['Kanal'])
                 else:
-                    d_lbl = str(d_raw).replace(".0", "") # Streamlit lägger ibland till .0 på siffror
+                    d_lbl = str(d_raw).replace(".0", "")
                 
                 pdf.cell(20, 8, f"Ch {k['Kanal']}", border=1, align="C")
                 pdf.cell(20, 8, d_lbl, border=1, align="C")
