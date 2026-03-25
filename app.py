@@ -188,12 +188,36 @@ if st.session_state["patch_list"]:
         csv_data = io.StringIO()
         csv_data.write("[Information]\nCS-R5\nDSP-RX\nV7.00\n[InName]\nIN,NAME,COLOR,ICON,\n")
         
+        # 1. Hämta vad användaren skrivit in i appen
         patch_dict = {int(r["Kanal"]): str(r["Instrument"]) for r in st.session_state["patch_list"]}
         
+        # 2. Läs in användarens startfils-namn om den finns
+        base_names = {}
+        base_csv_path = "rivage_base.csv"
+        if os.path.exists(base_csv_path):
+            try:
+                with open(base_csv_path, "r", encoding="utf-8", errors="ignore") as f:
+                    for line in f:
+                        if line.startswith("_"):
+                            parts = line.strip().split(",")
+                            if len(parts) >= 2:
+                                try:
+                                    c_num = int(parts[0].replace("_", ""))
+                                    base_names[c_num] = parts[1]
+                                except: pass
+            except: pass
+
+        # 3. Bygg upp den färdiga Rivage-filen rad för rad
         for i in range(1, 145):
             ch_format = f"_{i:03d}"
+            
+            # Prioritera appens namn i första hand
             if i in patch_dict:
                 rent_namn = patch_dict[i].replace(",", " ")
+            # Annars, om kanalen finns i startfilen, ta tillbaka originalnamnet (t.ex. FX RET)
+            elif i in base_names:
+                rent_namn = base_names[i]
+            # Annars döp den bara till ch X
             else:
                 rent_namn = f"ch {i}"
                 
@@ -201,9 +225,8 @@ if st.session_state["patch_list"]:
             
         csv_str = csv_data.getvalue()
         
-        # FIX: Filnamnet är nu låst till exakt "InName.csv"
         st.download_button(
-            label="💾 Ladda ner Rivage CSV",
+            label="💾 Ladda ner InName.csv",
             data=csv_str,
             file_name="InName.csv",
             mime="text/csv",
