@@ -334,11 +334,8 @@ if st.session_state["patch_list"]:
             box_groups[g].append(r)
             
         for g_name in sorted(box_groups.keys()):
-            # --- SMART SIDBRYTNING ---
-            # Räkna ut hur hög tabellen blir: 10 (Rubrik) + 8 (Header) + Rader + 8 (Bottenmarginal)
             needed_height = 18 + (len(box_groups[g_name]) * 8) + 8
             
-            # En A4 är 297mm hög. Vi bryter om boxen är rimligt stor, men inte får plats.
             if pdf.get_y() + needed_height > 275 and pdf.get_y() > 30:
                 pdf.add_page()
 
@@ -354,8 +351,7 @@ if st.session_state["patch_list"]:
             
             pdf.cell(0, 10, box_rubrik, new_x="LMARGIN", new_y="NEXT")
             
-            # --- HEADER MED NYA KOLUMNER (TOTALT 190mm) ---
-            pdf.set_font("helvetica", "B", 10) # Gick ner en font-storlek för att rymma mer
+            pdf.set_font("helvetica", "B", 10)
             pdf.cell(15, 8, "Kanal", border=1, align="C")
             pdf.cell(15, 8, "Dante", border=1, align="C")
             pdf.cell(20, 8, "Patch", border=1, align="C")
@@ -374,14 +370,22 @@ if st.session_state["patch_list"]:
                     d_lbl = str(d_raw).replace(".0", "")
                     
                 m_lbl = str(k.get('Mic/DI', ''))
+                
+                # --- PDF-FIX: Byt ut Inget mot ett centrerat streck ---
                 s_lbl = str(k.get('Stativ', ''))
+                if s_lbl.lower() == "inget" or s_lbl == "":
+                    s_lbl = "-"
+                    s_align = "C"
+                else:
+                    s_lbl = f" {s_lbl}"
+                    s_align = "L"
                 
                 pdf.cell(15, 8, f"Ch {k['Kanal']}", border=1, align="C")
                 pdf.cell(15, 8, d_lbl, border=1, align="C")
                 pdf.cell(20, 8, b_lbl, border=1, align="C")
                 pdf.cell(60, 8, f" {k['Instrument']}", border=1)
                 pdf.cell(55, 8, f" {m_lbl}", border=1)
-                pdf.cell(25, 8, f" {s_lbl}", border=1, new_x="LMARGIN", new_y="NEXT")
+                pdf.cell(25, 8, s_lbl, border=1, align=s_align, new_x="LMARGIN", new_y="NEXT")
             
             pdf.ln(8) 
             
@@ -392,7 +396,6 @@ if st.session_state["patch_list"]:
             if s and s != "Inget": s_count[s] = s_count.get(s, 0) + 1
 
         if m_count or s_count:
-            # --- PACKLISTA PÅ NY SIDA ---
             pdf.add_page()
             
             pdf.ln(5); pdf.set_font("helvetica", "B", 16)
