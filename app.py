@@ -203,26 +203,9 @@ if st.session_state["patch_list"]:
             key="patch_editor", on_change=update_live 
         )
 
-    unique_boxes = set()
-    for r in st.session_state["patch_list"]:
-        b_val = str(r.get("Stagebox", "")).strip()
-        if b_val and b_val.lower() not in ["nan", "none", "null"]:
-            g = b_val[0].upper() if b_val[0].isalpha() else "Trådlöst"
-            if g != "Trådlöst":
-                unique_boxes.add(g)
+    st.write("") # Lite luft
 
-    # --- UPPDATERAD: Fast sektion istället för expander ---
-    if unique_boxes:
-        st.subheader("📍 Placering av Stageboxar (visas på PDF)")
-        st.write("Skriv in var varje box ska ligga på scenen (t.ex. USR, DSC, Drum Riser).")
-        cols = st.columns(min(len(unique_boxes), 4))
-        for i, box in enumerate(sorted(list(unique_boxes))):
-            with cols[i % len(cols)]:
-                val = st.session_state["box_locations"].get(box, "")
-                st.session_state["box_locations"][box] = st.text_input(f"Box {box}", value=val, key=f"loc_{box}")
-                    
-    st.write("")
-
+    # --- RADERA OCH RENSA FLYTTADE HIT UPP ---
     ca, cb, cc = st.columns(3)
     with ca: ch_del = st.selectbox("Radera kanal:", [r["Kanal"] for r in st.session_state["patch_list"]])
     with cb: 
@@ -244,6 +227,27 @@ if st.session_state["patch_list"]:
             st.rerun()
 
     st.divider()
+
+    # --- PLACERING AV STAGEBOXAR ---
+    unique_boxes = set()
+    for r in st.session_state["patch_list"]:
+        b_val = str(r.get("Stagebox", "")).strip()
+        if b_val and b_val.lower() not in ["nan", "none", "null"]:
+            g = b_val[0].upper() if b_val[0].isalpha() else "Trådlöst"
+            if g != "Trådlöst":
+                unique_boxes.add(g)
+
+    if unique_boxes:
+        st.subheader("📍 Placering av Stageboxar (visas på PDF)")
+        st.write("Skriv in var varje box ska ligga på scenen (t.ex. USR, DSC, Drum Riser).")
+        cols = st.columns(min(len(unique_boxes), 4))
+        for i, box in enumerate(sorted(list(unique_boxes))):
+            with cols[i % len(cols)]:
+                val = st.session_state["box_locations"].get(box, "")
+                st.session_state["box_locations"][box] = st.text_input(f"Box {box}", value=val, key=f"loc_{box}")
+                    
+        st.write("")
+
     st.header("3. Exportera")
     cx, cy = st.columns(2)
     with cx:
