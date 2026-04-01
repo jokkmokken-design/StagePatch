@@ -71,7 +71,7 @@ if "success_msg" not in st.session_state:
 if "snabb_läge_state" not in st.session_state:
     st.session_state.snabb_läge_state = False
 if "box_locations" not in st.session_state:
-    st.session_state["box_locations"] = {} # Minne för stagebox-placeringar
+    st.session_state["box_locations"] = {}
 
 if "vald_inst" not in st.session_state or st.session_state["vald_inst"] not in instrument_lista:
     if instrument_lista:
@@ -203,7 +203,6 @@ if st.session_state["patch_list"]:
             key="patch_editor", on_change=update_live 
         )
 
-    # --- NYHET: Placering av Stageboxar ---
     unique_boxes = set()
     for r in st.session_state["patch_list"]:
         b_val = str(r.get("Stagebox", "")).strip()
@@ -219,11 +218,9 @@ if st.session_state["patch_list"]:
             for i, box in enumerate(sorted(list(unique_boxes))):
                 with cols[i % len(cols)]:
                     val = st.session_state["box_locations"].get(box, "")
-                    # Sparar input direkt i session_state
                     st.session_state["box_locations"][box] = st.text_input(f"Box {box}", value=val, key=f"loc_{box}")
                     
-    st.write("") # Lite luft
-    # --------------------------------------
+    st.write("")
 
     ca, cb, cc = st.columns(3)
     with ca: ch_del = st.selectbox("Radera kanal:", [r["Kanal"] for r in st.session_state["patch_list"]])
@@ -242,7 +239,7 @@ if st.session_state["patch_list"]:
         st.write(""); st.write("")
         if st.button("🚨 Rensa allt"): 
             st.session_state["patch_list"] = []
-            st.session_state["box_locations"] = {} # Rensa även placeringarna
+            st.session_state["box_locations"] = {}
             st.rerun()
 
     st.divider()
@@ -337,7 +334,14 @@ if st.session_state["patch_list"]:
             box_groups[g].append(r)
             
         for g_name in sorted(box_groups.keys()):
-            # NY LOGIK FÖR PDF-RUBRIKER MED PLACERING
+            # --- SMART SIDBRYTNING ---
+            # Räkna ut hur hög tabellen blir: 10 (Rubrik) + 8 (Header) + Rader + 8 (Bottenmarginal)
+            needed_height = 18 + (len(box_groups[g_name]) * 8) + 8
+            
+            # En A4 är 297mm hög. Vi bryter om boxen är rimligt stor, men inte får plats.
+            if pdf.get_y() + needed_height > 275 and pdf.get_y() > 30:
+                pdf.add_page()
+
             pdf.set_font("helvetica", "B", 14)
             if g_name == "Trådlöst":
                 box_rubrik = "Trådlöst"
@@ -350,13 +354,16 @@ if st.session_state["patch_list"]:
             
             pdf.cell(0, 10, box_rubrik, new_x="LMARGIN", new_y="NEXT")
             
-            pdf.set_font("helvetica", "B", 12)
-            pdf.cell(20, 8, "Kanal", border=1, align="C")
-            pdf.cell(20, 8, "Dante", border=1, align="C")
-            pdf.cell(25, 8, "Patch", border=1, align="C")
-            pdf.cell(90, 8, "Instrument", border=1, new_x="LMARGIN", new_y="NEXT")
+            # --- HEADER MED NYA KOLUMNER (TOTALT 190mm) ---
+            pdf.set_font("helvetica", "B", 10) # Gick ner en font-storlek för att rymma mer
+            pdf.cell(15, 8, "Kanal", border=1, align="C")
+            pdf.cell(15, 8, "Dante", border=1, align="C")
+            pdf.cell(20, 8, "Patch", border=1, align="C")
+            pdf.cell(60, 8, "Instrument", border=1)
+            pdf.cell(55, 8, "Mic/DI", border=1)
+            pdf.cell(25, 8, "Stativ", border=1, new_x="LMARGIN", new_y="NEXT")
             
-            pdf.set_font("helvetica", "", 12)
+            pdf.set_font("helvetica", "", 10)
             for k in sorted(box_groups[g_name], key=lambda x: str(x["Stagebox"])):
                 b_lbl = str(k['Stagebox']) if k['Stagebox'] else "-"
                 
@@ -365,11 +372,16 @@ if st.session_state["patch_list"]:
                     d_lbl = str(k['Kanal'])
                 else:
                     d_lbl = str(d_raw).replace(".0", "")
+                    
+                m_lbl = str(k.get('Mic/DI', ''))
+                s_lbl = str(k.get('Stativ', ''))
                 
-                pdf.cell(20, 8, f"Ch {k['Kanal']}", border=1, align="C")
-                pdf.cell(20, 8, d_lbl, border=1, align="C")
-                pdf.cell(25, 8, b_lbl, border=1, align="C")
-                pdf.cell(90, 8, f" {k['Instrument']}", border=1, new_x="LMARGIN", new_y="NEXT")
+                pdf.cell(15, 8, f"Ch {k['Kanal']}", border=1, align="C")
+                pdf.cell(15, 8, d_lbl, border=1, align="C")
+                pdf.cell(20, 8, b_lbl, border=1, align="C")
+                pdf.cell(60, 8, f" {k['Instrument']}", border=1)
+                pdf.cell(55, 8, f" {m_lbl}", border=1)
+                pdf.cell(25, 8, f" {s_lbl}", border=1, new_x="LMARGIN", new_y="NEXT")
             
             pdf.ln(8) 
             
@@ -380,6 +392,9 @@ if st.session_state["patch_list"]:
             if s and s != "Inget": s_count[s] = s_count.get(s, 0) + 1
 
         if m_count or s_count:
+            # --- PACKLISTA PÅ NY SIDA ---
+            pdf.add_page()
+            
             pdf.ln(5); pdf.set_font("helvetica", "B", 16)
             pdf.cell(0, 10, "--- PACKLISTA ---", new_x="LMARGIN", new_y="NEXT", align="C"); pdf.ln(5)
             if m_count:
