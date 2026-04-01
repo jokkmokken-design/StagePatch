@@ -21,8 +21,15 @@ if os.path.exists(DEFAULT_DB_PATH):
         db_df = pd.read_excel(DEFAULT_DB_PATH)
         for index, row in db_df.iterrows():
             m = str(row["Mic"]) if pd.notna(row["Mic"]) else ""
+            if m.lower() == "nan": m = ""
+            
             s = str(row["Stativ"]) if pd.notna(row["Stativ"]) else "Inget"
-            standard_mics[str(row["Instrument"])] = {"Mic": m, "Stativ": s}
+            if s.lower() == "nan": s = "Inget"
+            
+            inst_val = str(row["Instrument"]) if pd.notna(row["Instrument"]) else ""
+            if inst_val.lower() == "nan": inst_val = ""
+            
+            standard_mics[inst_val] = {"Mic": m, "Stativ": s}
         st.sidebar.success("✅ Laddade micklåda från fil!")
     except: pass
 
@@ -45,8 +52,15 @@ if uppladdad_fil is not None:
     standard_mics = {} 
     for index, row in db_df.iterrows():
         m = str(row["Mic"]) if pd.notna(row["Mic"]) else ""
+        if m.lower() == "nan": m = ""
+        
         s = str(row["Stativ"]) if pd.notna(row["Stativ"]) else "Inget"
-        standard_mics[str(row["Instrument"])] = {"Mic": m, "Stativ": s}
+        if s.lower() == "nan": s = "Inget"
+        
+        inst_val = str(row["Instrument"]) if pd.notna(row["Instrument"]) else ""
+        if inst_val.lower() == "nan": inst_val = ""
+        
+        standard_mics[inst_val] = {"Mic": m, "Stativ": s}
     instrument_lista = list(standard_mics.keys())
 
 # --- APPENS MINNE ---
@@ -88,7 +102,7 @@ def lagg_till_kanal(ny_box):
     st.session_state["vald_mic"] = standard_mics[n_inst]["Mic"]
     s = standard_mics[n_inst]["Stativ"]
     st.session_state["vald_stativ"] = s if s in stativ_val else stativ_val[0]
-    st.session_state["success_msg"] = f"{inst} tillagd!"
+    st.session_state["success_msg"] = f"Kanal tillagd!"
 
 # --- HUVUDYTA ---
 st.title(f"StagePatch 🎛️ - {gig_namn}" if gig_namn else "StagePatch 🎛️")
@@ -190,7 +204,6 @@ if st.session_state["patch_list"]:
         
         patch_dict = {int(r["Kanal"]): str(r["Instrument"]) for r in st.session_state["patch_list"]}
         
-        # FIX: Läs in Namn, Färg och Ikon från startfilen!
         base_data = {}
         base_csv_path = "rivage_base.csv"
         if os.path.exists(base_csv_path):
@@ -203,7 +216,6 @@ if st.session_state["patch_list"]:
                                 try:
                                     c_num = int(parts[0].replace("_", ""))
                                     b_name = parts[1]
-                                    # Fånga färg och ikon, annars defaulta till Blue/Dynamic
                                     b_color = parts[2] if len(parts) > 2 else "Blue"
                                     b_icon = parts[3] if len(parts) > 3 else "Dynamic"
                                     
@@ -218,24 +230,23 @@ if st.session_state["patch_list"]:
         for i in range(1, 145):
             ch_format = f"_{i:03d}"
             
-            # Sätt default-värden om kanalen är helt tom i båda systemen
             b_color = "Blue"
             b_icon = "Dynamic"
             
-            # Har kanalen ett utseende i startfilen? Kopiera det!
             if i in base_data:
                 b_color = base_data[i]["color"]
                 b_icon = base_data[i]["icon"]
             
-            # Sätt namnet: 1. Appen, 2. Startfilen, 3. Standard
             if i in patch_dict:
+                # Renar bort kommatecken och ser till att blanka instrument förblir blanka
                 rent_namn = patch_dict[i].replace(",", " ")
+                if rent_namn.strip() == "":
+                    rent_namn = f"ch {i}"
             elif i in base_data:
                 rent_namn = base_data[i]["name"]
             else:
                 rent_namn = f"ch {i}"
                 
-            # Skriv raden med rätt namn, rätt färg och rätt ikon!
             csv_data.write(f"{ch_format},{rent_namn},{b_color},{b_icon},\n")
             
         csv_str = csv_data.getvalue()
