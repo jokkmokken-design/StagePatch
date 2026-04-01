@@ -68,9 +68,10 @@ if "patch_list" not in st.session_state:
     st.session_state["patch_list"] = []
 if "success_msg" not in st.session_state:
     st.session_state["success_msg"] = ""
-
 if "snabb_läge_state" not in st.session_state:
     st.session_state.snabb_läge_state = False
+if "box_locations" not in st.session_state:
+    st.session_state["box_locations"] = {} # Minne för stagebox-placeringar
 
 if "vald_inst" not in st.session_state or st.session_state["vald_inst"] not in instrument_lista:
     if instrument_lista:
@@ -134,24 +135,20 @@ st.divider()
 st.header("2. Aktuell Patchlista")
 if st.session_state["patch_list"]:
     
-    # --- GEMENSAM MOTOR FÖR ATT SPARA OCH FLYTTA KANALER ---
     def apply_edits(editor_key):
         edits = st.session_state[editor_key].get("edited_rows", {})
         
-        # 1. Spara alla vanliga ändringar först (Namn, Dante, Stagebox)
         for idx_str, data in edits.items():
             idx = int(idx_str)
             for col, val in data.items():
                 if col != "Kanal":
                     st.session_state["patch_list"][idx][col] = val
                     
-        # 2. Kolla om vi har ändrat kanalnummer på någon rad
         moves = []
         for idx_str, data in edits.items():
             if "Kanal" in data:
                 moves.append((int(idx_str), data["Kanal"]))
                 
-        # 3. Gör själva flytten (dra ut raden, och tryck in den på ny plats)
         if moves:
             old_idx, new_ch = moves[0]
             new_idx = int(new_ch) - 1
@@ -162,11 +159,9 @@ if st.session_state["patch_list"]:
             item = st.session_state["patch_list"].pop(old_idx)
             st.session_state["patch_list"].insert(new_idx, item)
             
-        # 4. Numrera om allt och låt Dante följa med (om den var synkad)
         for i, r in enumerate(st.session_state["patch_list"]):
             old_kanal = r["Kanal"]
             new_kanal = i + 1
-            # Om Dante var samma som det gamla kanalnumret, uppdatera den!
             if r.get("Dante") == old_kanal:
                 r["Dante"] = new_kanal
             r["Kanal"] = new_kanal
@@ -208,13 +203,34 @@ if st.session_state["patch_list"]:
             key="patch_editor", on_change=update_live 
         )
 
+    # --- NYHET: Placering av Stageboxar ---
+    unique_boxes = set()
+    for r in st.session_state["patch_list"]:
+        b_val = str(r.get("Stagebox", "")).strip()
+        if b_val and b_val.lower() not in ["nan", "none", "null"]:
+            g = b_val[0].upper() if b_val[0].isalpha() else "Trådlöst"
+            if g != "Trådlöst":
+                unique_boxes.add(g)
+
+    if unique_boxes:
+        with st.expander("📍 Placering av Stageboxar (Frivilligt, visas på PDF)"):
+            st.write("Skriv in var varje box ska ligga på scenen (t.ex. USR, DSC, Drum Riser).")
+            cols = st.columns(min(len(unique_boxes), 4))
+            for i, box in enumerate(sorted(list(unique_boxes))):
+                with cols[i % len(cols)]:
+                    val = st.session_state["box_locations"].get(box, "")
+                    # Sparar input direkt i session_state
+                    st.session_state["box_locations"][box] = st.text_input(f"Box {box}", value=val, key=f"loc_{box}")
+                    
+    st.write("") # Lite luft
+    # --------------------------------------
+
     ca, cb, cc = st.columns(3)
     with ca: ch_del = st.selectbox("Radera kanal:", [r["Kanal"] for r in st.session_state["patch_list"]])
     with cb: 
         st.write(""); st.write("")
         if st.button("🗑️ Radera"):
             st.session_state["patch_list"] = [r for r in st.session_state["patch_list"] if r["Kanal"] != ch_del]
-            # Numrera om efter borttagning, och uppdatera Dante!
             for i, r in enumerate(st.session_state["patch_list"]):
                 old_kanal = r["Kanal"]
                 new_kanal = i + 1
@@ -224,7 +240,10 @@ if st.session_state["patch_list"]:
             st.rerun()
     with cc:
         st.write(""); st.write("")
-        if st.button("🚨 Rensa allt"): st.session_state["patch_list"] = []; st.rerun()
+        if st.button("🚨 Rensa allt"): 
+            st.session_state["patch_list"] = []
+            st.session_state["box_locations"] = {} # Rensa även placeringarna
+            st.rerun()
 
     st.divider()
     st.header("3. Exportera")
@@ -318,8 +337,18 @@ if st.session_state["patch_list"]:
             box_groups[g].append(r)
             
         for g_name in sorted(box_groups.keys()):
+            # NY LOGIK FÖR PDF-RUBRIKER MED PLACERING
             pdf.set_font("helvetica", "B", 14)
-            pdf.cell(0, 10, f"Stagebox {g_name}" if g_name != "Trådlöst" else "Trådlöst", new_x="LMARGIN", new_y="NEXT")
+            if g_name == "Trådlöst":
+                box_rubrik = "Trådlöst"
+            else:
+                loc = st.session_state["box_locations"].get(g_name, "").strip()
+                if loc:
+                    box_rubrik = f"Stagebox {g_name} - {loc}"
+                else:
+                    box_rubrik = f"Stagebox {g_name}"
+            
+            pdf.cell(0, 10, box_rubrik, new_x="LMARGIN", new_y="NEXT")
             
             pdf.set_font("helvetica", "B", 12)
             pdf.cell(20, 8, "Kanal", border=1, align="C")
