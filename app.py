@@ -143,25 +143,63 @@ if st.session_state["patch_list"]:
     h = max(150, (len(st.session_state["patch_list"]) * 36) + 45)
     df_patch = pd.DataFrame(st.session_state["patch_list"])
 
+    # --- GEMENSAM KONFIGURATION FÖR TABELLERNA ---
+    tabell_config = {
+        "Kanal": st.column_config.NumberColumn("Kanal (Ändra för att flytta)", disabled=False, step=1), 
+        "Dante": st.column_config.NumberColumn("Dante", step=1),
+        "Stativ": st.column_config.SelectboxColumn(options=stativ_val)
+    }
+
     if st.session_state.snabb_läge_state:
         st.info("💡 Använd **Tab** och **Pilar** fritt. Tryck på Spara när du är klar!")
         with st.form("batch_edit_form"):
             edited_df = st.data_editor(
                 df_patch, use_container_width=True, height=h, hide_index=True,
-                column_config={
-                    "Kanal": st.column_config.NumberColumn(disabled=True), 
-                    "Dante": st.column_config.NumberColumn("Dante", step=1),
-                    "Stativ": st.column_config.SelectboxColumn(options=stativ_val)
-                },
+                column_config=tabell_config,
                 key="batch_editor"
             )
             if st.form_submit_button("💾 Spara och stäng redigering"):
-                st.session_state["patch_list"] = edited_df.to_dict('records')
+                new_list = edited_df.to_dict('records')
+                # Om du ändrat flera kanalnummer i batch-läget, sorterar vi listan efter dem
+                new_list.sort(key=lambda x: x["Kanal"])
+                # Sedan numrerar vi om så det blir solid 1, 2, 3 igen (knuffar neråt)
+                for i, r in enumerate(new_list):
+                    r["Kanal"] = i + 1
+                
+                st.session_state["patch_list"] = new_list
                 st.session_state.snabb_läge_state = False 
                 st.rerun()
     else:
         def update_live():
             edits = st.session_state["patch_editor"].get("edited_rows", {})
+            
+            # 1. Kolla om någon har försökt flytta en kanal (ändrat "Kanal")
+            moves = []
+            for idx_str, data in edits.items():
+                if "Kanal" in data:
+                    moves.append((int(idx_str), data["Kanal"]))
+                    
+            if moves:
+                old_idx, new_ch = moves[0]
+                new_idx = int(new_ch) - 1
+                
+                # Se till att siffran inte är galen (typ -50 eller 1000)
+                if new_idx < 0: new_idx = 0
+                if new_idx > len(st.session_state["patch_list"]) - 1:
+                    new_idx = len(st.session_state["patch_list"]) - 1
+                    
+                # FLYTTEN: Dra ut och tryck in på ny plats
+                item = st.session_state["patch_list"].pop(old_idx)
+                st.session_state["patch_list"].insert(new_idx, item)
+                
+                # Knuffa om alla nummer snyggt
+                for i, r in enumerate(st.session_state["patch_list"]):
+                    r["Kanal"] = i + 1
+                
+                # Avbryt och starta om så att indexen inte går sönder om du ändrat flera grejer samtidigt
+                return 
+
+            # 2. Om du inte flyttade en kanal, spara de vanliga ändringarna
             for idx_str, data in edits.items():
                 idx = int(idx_str)
                 for col, val in data.items():
@@ -169,11 +207,7 @@ if st.session_state["patch_list"]:
 
         st.data_editor(
             df_patch, use_container_width=True, height=h, hide_index=True,
-            column_config={
-                "Kanal": st.column_config.NumberColumn(disabled=True), 
-                "Dante": st.column_config.NumberColumn("Dante", step=1),
-                "Stativ": st.column_config.SelectboxColumn(options=stativ_val)
-            },
+            column_config=tabell_config,
             key="patch_editor", on_change=update_live 
         )
 
@@ -238,7 +272,6 @@ if st.session_state["patch_list"]:
                 b_icon = base_data[i]["icon"]
             
             if i in patch_dict:
-                # Renar bort kommatecken och ser till att blanka instrument förblir blanka
                 rent_namn = patch_dict[i].replace(",", " ")
                 if rent_namn.strip() == "":
                     rent_namn = f"ch {i}"
