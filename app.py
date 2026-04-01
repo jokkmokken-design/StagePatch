@@ -211,14 +211,15 @@ if st.session_state["patch_list"]:
             if g != "Trådlöst":
                 unique_boxes.add(g)
 
+    # --- UPPDATERAD: Fast sektion istället för expander ---
     if unique_boxes:
-        with st.expander("📍 Placering av Stageboxar (Frivilligt, visas på PDF)"):
-            st.write("Skriv in var varje box ska ligga på scenen (t.ex. USR, DSC, Drum Riser).")
-            cols = st.columns(min(len(unique_boxes), 4))
-            for i, box in enumerate(sorted(list(unique_boxes))):
-                with cols[i % len(cols)]:
-                    val = st.session_state["box_locations"].get(box, "")
-                    st.session_state["box_locations"][box] = st.text_input(f"Box {box}", value=val, key=f"loc_{box}")
+        st.subheader("📍 Placering av Stageboxar (visas på PDF)")
+        st.write("Skriv in var varje box ska ligga på scenen (t.ex. USR, DSC, Drum Riser).")
+        cols = st.columns(min(len(unique_boxes), 4))
+        for i, box in enumerate(sorted(list(unique_boxes))):
+            with cols[i % len(cols)]:
+                val = st.session_state["box_locations"].get(box, "")
+                st.session_state["box_locations"][box] = st.text_input(f"Box {box}", value=val, key=f"loc_{box}")
                     
     st.write("")
 
@@ -371,7 +372,6 @@ if st.session_state["patch_list"]:
                     
                 m_lbl = str(k.get('Mic/DI', ''))
                 
-                # --- PDF-FIX: Byt ut Inget mot ett centrerat streck ---
                 s_lbl = str(k.get('Stativ', ''))
                 if s_lbl.lower() == "inget" or s_lbl == "":
                     s_lbl = "-"
