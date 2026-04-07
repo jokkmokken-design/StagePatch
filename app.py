@@ -16,6 +16,9 @@ st.sidebar.header("📁 Din Micklåda (Databas)")
 DEFAULT_DB_PATH = "databas.xlsx"
 standard_mics = {}
 
+# NYHET: "Annat (Fritext)" tillagt i listan!
+stativ_val = ["Tall", "Short", "Very Short", "Flat", "Inget", "Annat (Fritext)"]
+
 if os.path.exists(DEFAULT_DB_PATH):
     try:
         db_df = pd.read_excel(DEFAULT_DB_PATH)
@@ -43,7 +46,6 @@ if not standard_mics:
         inst = template_data["Instrument"][i]
         standard_mics[inst] = {"Mic": template_data["Mic"][i], "Stativ": template_data["Stativ"][i]}
 
-stativ_val = ["Tall", "Short", "Very Short", "Flat", "Inget"]
 instrument_lista = list(standard_mics.keys())
 
 uppladdad_fil = st.sidebar.file_uploader("Uppdatera micklådan tillfälligt:", type=["xlsx"])
@@ -78,18 +80,33 @@ if "vald_inst" not in st.session_state or st.session_state["vald_inst"] not in i
         st.session_state["vald_inst"] = instrument_lista[0]
         curr = standard_mics[instrument_lista[0]]
         st.session_state["vald_mic"] = curr["Mic"]
-        st.session_state["vald_stativ"] = curr["Stativ"] if curr["Stativ"] in stativ_val else stativ_val[0]
+        s = curr["Stativ"]
+        if s in stativ_val:
+            st.session_state["vald_stativ"] = s
+        else:
+            st.session_state["vald_stativ"] = "Annat (Fritext)"
+            st.session_state["vald_stativ_custom"] = s
 
 def on_inst_change():
     inst = st.session_state["vald_inst"]
     st.session_state["vald_mic"] = standard_mics[inst]["Mic"]
     s = standard_mics[inst]["Stativ"]
-    st.session_state["vald_stativ"] = s if s in stativ_val else stativ_val[0]
+    if s in stativ_val:
+        st.session_state["vald_stativ"] = s
+    else:
+        st.session_state["vald_stativ"] = "Annat (Fritext)"
+        st.session_state["vald_stativ_custom"] = s
 
 def lagg_till_kanal(ny_box):
     inst = st.session_state["vald_inst"]
     mic = st.session_state["vald_mic"]
-    stativ = st.session_state["vald_stativ"]
+    
+    # Hämta värdet från fritextrutan om Annat är valt
+    if st.session_state["vald_stativ"] == "Annat (Fritext)":
+        stativ = st.session_state.get("vald_stativ_custom", "")
+    else:
+        stativ = st.session_state["vald_stativ"]
+        
     knr = len(st.session_state["patch_list"]) + 1 
     
     st.session_state["patch_list"].append({
@@ -101,8 +118,14 @@ def lagg_till_kanal(ny_box):
     n_inst = instrument_lista[n_idx]
     st.session_state["vald_inst"] = n_inst
     st.session_state["vald_mic"] = standard_mics[n_inst]["Mic"]
+    
     s = standard_mics[n_inst]["Stativ"]
-    st.session_state["vald_stativ"] = s if s in stativ_val else stativ_val[0]
+    if s in stativ_val:
+        st.session_state["vald_stativ"] = s
+    else:
+        st.session_state["vald_stativ"] = "Annat (Fritext)"
+        st.session_state["vald_stativ_custom"] = s
+        
     st.session_state["success_msg"] = f"Kanal tillagd!"
 
 # --- HUVUDYTA ---
@@ -112,7 +135,12 @@ st.header("1. Lägg till kanal")
 st.selectbox("Välj instrument:", instrument_lista, key="vald_inst", on_change=on_inst_change)
 c1, c2, c3 = st.columns(3)
 with c1: st.text_input("Mikrofon/DI", key="vald_mic")
-with c2: st.selectbox("Stativ", options=stativ_val, key="vald_stativ")
+with c2: 
+    st.selectbox("Stativ", options=stativ_val, key="vald_stativ")
+    # Visar textrutan om man valt "Annat (Fritext)"
+    if st.session_state.get("vald_stativ") == "Annat (Fritext)":
+        st.text_input("Clip / Fritext:", key="vald_stativ_custom")
+
 with c3:
     boxes = ["A", "B", "C", "D", "E", "F", "G", "H", ""]
     b_let = st.selectbox("Stagebox", boxes, format_func=lambda x: "Trådlös" if x == "" else f"Box {x}")
@@ -175,10 +203,11 @@ if st.session_state["patch_list"]:
     h = max(150, (len(st.session_state["patch_list"]) * 36) + 45)
     df_patch = pd.DataFrame(st.session_state["patch_list"])
 
+    # ÄNDRING: Stativ är nu en TextColumn så att den går att fritext-redigera direkt i Snabbläget!
     tabell_config = {
         "Kanal": st.column_config.NumberColumn("Kanal (Ändra för att flytta)", disabled=False, step=1), 
         "Dante": st.column_config.NumberColumn("Dante", step=1),
-        "Stativ": st.column_config.SelectboxColumn(options=stativ_val)
+        "Stativ": st.column_config.TextColumn("Stativ") 
     }
 
     if st.session_state.snabb_läge_state:
@@ -203,9 +232,8 @@ if st.session_state["patch_list"]:
             key="patch_editor", on_change=update_live 
         )
 
-    st.write("") # Lite luft
+    st.write("") 
 
-    # --- RADERA OCH RENSA FLYTTADE HIT UPP ---
     ca, cb, cc = st.columns(3)
     with ca: ch_del = st.selectbox("Radera kanal:", [r["Kanal"] for r in st.session_state["patch_list"]])
     with cb: 
@@ -228,7 +256,6 @@ if st.session_state["patch_list"]:
 
     st.divider()
 
-    # --- PLACERING AV STAGEBOXAR ---
     unique_boxes = set()
     for r in st.session_state["patch_list"]:
         b_val = str(r.get("Stagebox", "")).strip()
