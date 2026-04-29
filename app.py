@@ -3,12 +3,39 @@ import pandas as pd
 from fpdf import FPDF
 import io
 import os 
+import json # NYHET: Krävs för att kunna spara/ladda projektfiler
 
 st.set_page_config(page_title="StagePatch", layout="wide") 
 
+# --- APPENS MINNE (Måste laddas tidigt för projekthanteringen) ---
+if "patch_list" not in st.session_state:
+    st.session_state["patch_list"] = []
+if "success_msg" not in st.session_state:
+    st.session_state["success_msg"] = ""
+if "snabb_läge_state" not in st.session_state:
+    st.session_state.snabb_läge_state = False
+if "box_locations" not in st.session_state:
+    st.session_state["box_locations"] = {}
+if "gig_namn" not in st.session_state:
+    st.session_state["gig_namn"] = ""
+
 # --- SIDOMENY: GIG & DATABAS ---
 st.sidebar.header("🎸 Gig & Inställningar")
-gig_namn = st.sidebar.text_input("Namn på Gig/Band:", placeholder="T.ex. Sommarfestivalen 2026")
+gig_namn = st.sidebar.text_input("Namn på Gig/Band:", key="gig_namn", placeholder="T.ex. Sommarfestivalen 2026")
+
+# NYHET: Ladda in gamla projekt
+st.sidebar.subheader("📂 Ladda tidigare projekt")
+uppladdat_projekt = st.sidebar.file_uploader("Släpp en StagePatch .json-fil här", type=["json"])
+if uppladdat_projekt is not None:
+    try:
+        projekt_data = json.load(uppladdat_projekt)
+        if st.sidebar.button("📥 Ladda in projektet", type="primary"):
+            st.session_state["patch_list"] = projekt_data.get("patch_list", [])
+            st.session_state["box_locations"] = projekt_data.get("box_locations", {})
+            st.session_state["gig_namn"] = projekt_data.get("gig_namn", "")
+            st.rerun()
+    except:
+        st.sidebar.error("❌ Det där verkar inte vara en giltig projektfil.")
 
 st.sidebar.divider()
 st.sidebar.header("📁 Din Micklåda (Databas)")
@@ -16,7 +43,6 @@ st.sidebar.header("📁 Din Micklåda (Databas)")
 DEFAULT_DB_PATH = "databas.xlsx"
 standard_mics = {}
 
-# NYHET: "Annat (Fritext)" tillagt i listan!
 stativ_val = ["Tall", "Short", "Very Short", "Flat", "Inget", "Annat (Fritext)"]
 
 if os.path.exists(DEFAULT_DB_PATH):
@@ -65,15 +91,6 @@ if uppladdad_fil is not None:
         standard_mics[inst_val] = {"Mic": m, "Stativ": s}
     instrument_lista = list(standard_mics.keys())
 
-# --- APPENS MINNE ---
-if "patch_list" not in st.session_state:
-    st.session_state["patch_list"] = []
-if "success_msg" not in st.session_state:
-    st.session_state["success_msg"] = ""
-if "snabb_läge_state" not in st.session_state:
-    st.session_state.snabb_läge_state = False
-if "box_locations" not in st.session_state:
-    st.session_state["box_locations"] = {}
 
 if "vald_inst" not in st.session_state or st.session_state["vald_inst"] not in instrument_lista:
     if instrument_lista:
@@ -101,7 +118,6 @@ def lagg_till_kanal(ny_box):
     inst = st.session_state["vald_inst"]
     mic = st.session_state["vald_mic"]
     
-    # Hämta värdet från fritextrutan om Annat är valt
     if st.session_state["vald_stativ"] == "Annat (Fritext)":
         stativ = st.session_state.get("vald_stativ_custom", "")
     else:
@@ -137,7 +153,6 @@ c1, c2, c3 = st.columns(3)
 with c1: st.text_input("Mikrofon/DI", key="vald_mic")
 with c2: 
     st.selectbox("Stativ", options=stativ_val, key="vald_stativ")
-    # Visar textrutan om man valt "Annat (Fritext)"
     if st.session_state.get("vald_stativ") == "Annat (Fritext)":
         st.text_input("Clip / Fritext:", key="vald_stativ_custom")
 
@@ -203,7 +218,6 @@ if st.session_state["patch_list"]:
     h = max(150, (len(st.session_state["patch_list"]) * 36) + 45)
     df_patch = pd.DataFrame(st.session_state["patch_list"])
 
-    # ÄNDRING: Stativ är nu en TextColumn så att den går att fritext-redigera direkt i Snabbläget!
     tabell_config = {
         "Kanal": st.column_config.NumberColumn("Kanal (Ändra för att flytta)", disabled=False, step=1), 
         "Dante": st.column_config.NumberColumn("Dante", step=1),
@@ -340,6 +354,23 @@ if st.session_state["patch_list"]:
             data=csv_str,
             file_name="InName.csv",
             mime="text/csv",
+            type="secondary"
+        )
+        
+        # --- NYHET: Spara Projekt-knapp ---
+        st.write("---")
+        st.subheader("💾 Spara Projekt (för att ladda in senare)")
+        projekt_export = {
+            "gig_namn": st.session_state["gig_namn"],
+            "patch_list": st.session_state["patch_list"],
+            "box_locations": st.session_state["box_locations"]
+        }
+        json_str = json.dumps(projekt_export, indent=2)
+        st.download_button(
+            label="💾 Ladda ner Projektfil (.json)",
+            data=json_str,
+            file_name=f"StagePatch_{st.session_state['gig_namn']}.json" if st.session_state['gig_namn'] else "StagePatch_Projekt.json",
+            mime="application/json",
             type="secondary"
         )
 
